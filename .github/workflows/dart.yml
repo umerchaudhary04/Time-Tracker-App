@@ -11,7 +11,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        flutter-version: [stable, beta]
+        flutter-channel: [stable]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -20,7 +20,14 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ matrix.flutter-version }}
+          channel: ${{ matrix.flutter-channel }}
+
+      - name: Ensure CocoaPods is available
+        if: matrix.os == 'macos-latest'
+        run: |
+          if ! command -v pod >/dev/null 2>&1; then
+            sudo gem install cocoapods --no-document
+          fi
 
       - name: Cache Pub dependencies
         uses: actions/cache@v4
@@ -28,9 +35,9 @@ jobs:
           path: |
             ~/.pub-cache
             .dart_tool/pub
-          key: ${{ runner.os }}-pub-${{ matrix.flutter-version }}-${{ hashFiles('**/pubspec.yaml') }}
+          key: ${{ runner.os }}-pub-${{ matrix.flutter-channel }}-${{ hashFiles('**/pubspec.lock') }}
           restore-keys: |
-            ${{ runner.os }}-pub-${{ matrix.flutter-version }}-
+            ${{ runner.os }}-pub-${{ matrix.flutter-channel }}-
 
       - name: Cache Gradle
         if: matrix.os == 'ubuntu-latest'
@@ -65,22 +72,15 @@ jobs:
         run: flutter test --no-fatal-infos
 
       - name: Build Android (APK)
-        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
+        if: matrix.os == 'ubuntu-latest'
         run: flutter build apk --release
 
       - name: Upload Android APK
-        if: always()
+        if: success() && matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: android-apk-${{ matrix.flutter-version }}-${{ matrix.os }}
+          name: android-apk-${{ matrix.flutter-channel }}-${{ matrix.os }}
           path: build/app/outputs/flutter-apk/*.apk
-
-      - name: Ensure CocoaPods is available
-        if: matrix.os == 'macos-latest'
-        run: |
-          if ! command -v pod >/dev/null 2>&1; then
-            sudo gem install cocoapods --no-document
-          fi
 
       - name: Build iOS (no codesign)
         if: matrix.os == 'macos-latest'
@@ -88,10 +88,10 @@ jobs:
           flutter build ios --no-codesign --release
 
       - name: Upload iOS artifacts
-        if: matrix.os == 'macos-latest'
+        if: success() && matrix.os == 'macos-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: ios-artifacts-${{ matrix.flutter-version }}
+          name: ios-artifacts-${{ matrix.flutter-channel }}
           path: |
             build/ios/ipa/**/*.ipa
             build/ios/iphoneos/**/*.app
